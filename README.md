@@ -1,4 +1,4 @@
-# Raytracing in C++ with SDL2 Framework [center]
+# Raytracing in C++ with SDL2 Framework
 
 ## Implementation
 

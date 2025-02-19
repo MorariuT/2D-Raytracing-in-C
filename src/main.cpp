@@ -1,228 +1,204 @@
-#include <iostream>
-#include <vector>
-#include <algorithm>
 #include "SDL2/SDL.h"
+#include "defs.h"
+#include "object.h"
+#include <algorithm>
+#include <mutex>
 #include <stdio.h>
-
-#define WIDTH 750
-#define HEIGHT 750
-#define SQ_SIDE 100
-#define NUMBER_OF_RAYS 500
+#include <thread>
+#include <vector>
 
 using namespace std;
 
-vector<vector<pair<int, int> > > objects;
+vector<vector<pair<int, int>>> objects;
 
-void render_square(SDL_Renderer *s, int x, int y, int side_length, bool add_to_list)
-{
-    vector<pair<int, int> > obj;
-    SDL_SetRenderDrawColor(s, 0xFF, 0xFF, 0xFF, 0xFF);
-    for(int i = 0;i < side_length;i++)
-    {
-        for(int j = 0;j < side_length;j++)
-        {
-            SDL_RenderDrawPoint(s, x + i, y + j);
-            if(add_to_list) obj.push_back(make_pair(x + i, y + j));
-        }
-    }
-    if(add_to_list) 
-    {
-        // sort(obj.begin(), obj.end());
-        objects.push_back(obj);
-    }
-    SDL_SetRenderDrawColor(s, 0x00, 0x00, 0x00, 0xFF);
+bool is_in_objects(int x, int y) {
+  for (int i = 0; i < objects.size(); i++) {
+    if (binary_search(objects[i].begin(), objects[i].end(), make_pair(x, y)))
+      return true;
+  }
+  return false;
 }
 
-double get_distance(int x1, int y1, int x2, int y2)
-{
-    return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+void render_chunk(vector<double> &diff_x1, vector<double> &diff_y1, double x2,
+                  double y2, int start, int end,
+                  vector<SDL_Point> &local_points) {
+  for (int i = start; i < end; i++) {
+    double step_x = diff_x1[i] / 2;
+    double step_y = diff_y1[i] / 2;
+    double x = x2, y = y2;
+
+    if (step_x <= 0 && step_y <= 0) {
+      while (x > 0 && y > 0) {
+        x += step_x;
+        y += step_y;
+        if (is_in_objects(x, y))
+          break;
+        local_points.push_back({static_cast<int>(x), static_cast<int>(y)});
+      }
+    }
+
+    x = x2;
+    y = y2;
+    if (step_x >= 0 && step_y <= 0) {
+      while (x < WIDTH && y > 0) {
+        x += step_x;
+        y += step_y;
+        if (is_in_objects(x, y))
+          break;
+        local_points.push_back({static_cast<int>(x), static_cast<int>(y)});
+      }
+    }
+
+    x = x2;
+    y = y2;
+    if (step_x <= 0 && step_y >= 0) {
+      while (x > 0 && y < HEIGHT) {
+        x += step_x;
+        y += step_y;
+        if (is_in_objects(x, y))
+          break;
+        local_points.push_back({static_cast<int>(x), static_cast<int>(y)});
+      }
+    }
+
+    x = x2;
+    y = y2;
+    if (step_x >= 0 && step_y >= 0) {
+      while (x < WIDTH && y < HEIGHT) {
+        x += step_x;
+        y += step_y;
+        if (is_in_objects(x, y))
+          break;
+        local_points.push_back({static_cast<int>(x), static_cast<int>(y)});
+      }
+    }
+  }
 }
 
-void render_circle(SDL_Renderer *s, int x, int y, int radius, bool add_to_list)
-{
-    vector<pair<int, int> > obj;
-    SDL_SetRenderDrawColor(s, 0xFF, 0x00, 0xFF, 0xFF);
-    int x_min = max(0, x - radius);
-    int y_min = max(0, y - radius);
+void render_functions(SDL_Renderer *s, vector<double> &diff_x1,
+                      vector<double> &diff_y1, double x2, double y2) {
+  SDL_SetRenderDrawColor(s, 0, 0xFF, 0xFF, 0xFF);
 
-    int x_max = min(WIDTH, x + radius);
-    int y_max = min(HEIGHT, y + radius);
+  int num_threads = 8;
+  vector<thread> threads;
+  int totalRays = diff_x1.size();
+  int chunk_size = totalRays / num_threads;
 
-    for(int i = x_min;i <= x_max;i++)
-    {
-        for(int j = y_min;j <= y_max;j++)
-        {
-            if(get_distance(i, j, x, y) <= radius) 
-            {
-                SDL_RenderDrawPoint(s, i, j);
-                if(add_to_list) obj.push_back(make_pair(i, j));
-            }
-            
-        }
-    }
-    if(add_to_list) 
-    {
-        // sort(obj.begin(), obj.end());
-        objects.push_back(obj);
-    }
-    SDL_SetRenderDrawColor(s, 0x00, 0x00, 0x00, 0xFF);
+  vector<vector<SDL_Point>> thread_points(num_threads);
+
+  for (int i = 0; i < num_threads; i++) {
+    int start = i * chunk_size;
+    int end = (i + 1) * chunk_size;
+
+    threads.emplace_back([=, &diff_x1, &diff_y1, &thread_points]() {
+      render_chunk(diff_x1, diff_y1, x2, y2, start, end, thread_points[i]);
+    });
+  }
+
+  for (auto &t : threads)
+    t.join();
+
+  vector<SDL_Point> all_points;
+  for (auto &vec : thread_points) {
+    all_points.insert(all_points.end(), vec.begin(), vec.end());
+  }
+
+  SDL_RenderDrawPoints(s, all_points.data(), all_points.size());
+  SDL_SetRenderDrawColor(s, 0x00, 0x00, 0x00, 0xFF);
 }
 
-bool is_in_objects(int x, int y)
-{
-    for(int i = 0;i < objects.size();i++)
-    {
-        if(binary_search(objects[i].begin(), objects[i].end(), make_pair(x, y))) return true;
-    }
-    return false;
-}
+int main() {
+  SDL_Init(SDL_INIT_VIDEO);
 
-void render_functions(SDL_Renderer *s, vector<double> &diff_x1, vector<double> &diff_y1, double x2, double y2)
-{
-    SDL_SetRenderDrawColor(s, 0, 0xFF, 0xFF, 0xFF);
+  SDL_Window *window = SDL_CreateWindow(
+      "2d raytracing", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH,
+      HEIGHT, SDL_WINDOW_SHOWN);
+  SDL_Renderer *s = SDL_CreateRenderer(
+      window, 0, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
-    for(int i = 0;i < diff_x1.size();i++)
-    {
-        double step_x = diff_x1[i];
-        double step_y = diff_y1[i];
+  bool running = true;
+  SDL_Event event;
 
-        double x = x2;
-        double y = y2;
+  int xMouse = 1;
+  int yMouse = 1;
 
-        if(step_x <= 0 and step_y <= 0)
-        {
-            while(x > 0 and y > 0)
-            {
-                x += step_x;
-                y += step_y;
+  int xSquare = 50;
+  bool Square_direction = true;
 
-                if(is_in_objects(x, y)) break;
+  Object ms = Object(s);
+  vector<int> args_ms = {50};
+  ms.set_color(0x00, 0x00, 0xFF, 0xFF);
 
-                SDL_RenderDrawPoint(s, x, y);
-            }
-        }
+  Object cursor = Object(s);
+  vector<int> args_cr = {50};
+  cursor.set_color(0xFF, 0xFF, 0xFF, 0xFF);
 
-        x = x2;
-        y = y2;
+  Object moving_cube = Object(s);
+  vector<int> args_mc = {SQ_SIDE};
+  moving_cube.set_color(0x00, 0xFF, 0x00, 0xFF);
 
-        if(step_x >= 0 and step_y <= 0)
-        {
-            while(x < WIDTH and y > 0)
-            {
-                x += step_x;
-                y += step_y;
-                if(is_in_objects(x, y)) break;
+  Object obstacle_circle = Object(s);
+  vector<int> args_oc = {75};
+  obstacle_circle.set_coords(400, 100);
+  obstacle_circle.set_color(0xFF, 0x00, 0x00, 0xFF);
 
+  vector<double> xMs;
+  vector<double> yMs;
 
-                SDL_RenderDrawPoint(s, x, y);
-            }
-        }
+  for (int i = 0; i < NUMBER_OF_RAYS + 10; i++) {
+    double angle = (2 * 3.1416 * i) / NUMBER_OF_RAYS;
+    double dx = cos(angle);
+    double dy = sin(angle);
 
-        x = x2;
-        y = y2;
+    xMs.push_back(dx);
+    yMs.push_back(dy);
+  }
 
-        if(step_x <= 0 and step_y >= 0)
-        {
-            while(x > 0 and y < HEIGHT)
-            {
-                x += step_x;
-                y += step_y;
-                if(is_in_objects(x, y)) break;
-
-
-                SDL_RenderDrawPoint(s, x, y);
-            }
-        }
-
-        x = x2;
-        y = y2;
-
-        if(step_x >= 0 and step_y >= 0)
-        {
-            while(x < WIDTH and y < HEIGHT)
-            {
-                x += step_x;
-                y += step_y;
-                if(is_in_objects(x, y)) break;
-
-
-                SDL_RenderDrawPoint(s, x, y);
-            }
-        }
-    }
-    SDL_SetRenderDrawColor(s, 0x00, 0x00, 0x00, 0xFF);
-}
-
-int main() 
-{    
-    SDL_Init(SDL_INIT_VIDEO);
-
-    SDL_Window* window = SDL_CreateWindow("2d raytracing", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH, HEIGHT, SDL_WINDOW_SHOWN);
-    SDL_Renderer *s = SDL_CreateRenderer(window, 0, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC) ;
-
-    bool running = true;
-    SDL_Event event;
-
-    int xMouse = 1;
-    int yMouse = 1;
-
-    int xSquare = 50;
-    bool Square_direction = true;
-
-
-    while (running) 
-    {
-        cout << xMouse << " " << yMouse << '\n';
-        while (SDL_PollEvent(&event)) 
-        {
-            if (event.type == SDL_QUIT) 
-            {
-                running = false;
-            }
-            if(event.type == SDL_MOUSEMOTION)
-            {
-                SDL_GetMouseState(&xMouse,&yMouse);
-            }
-        }        
-       
-        SDL_RenderClear(s);
-
-        render_square(s, xSquare, 500, SQ_SIDE, true);
-        render_circle(s, 250, 400, 40, true);
-
-
-
-        vector<double> xMs;
-        vector<double> yMs;
-
-        int nr_rays = sqrt(NUMBER_OF_RAYS);
-
-        for(int i = -(nr_rays / 2);i <= nr_rays/2;i++)
-        {
-            for(int j = -(nr_rays / 2);j <= nr_rays/2;j++)
-            {
-                if(i == 0 and j == 0) continue;
-                xMs.push_back(i);
-                yMs.push_back(j);
-            }
-        }
-
-
-        render_functions(s, xMs, yMs, xMouse, yMouse);
-
-        render_circle(s, xMouse, yMouse, 40, false);
-
-
-        SDL_RenderPresent(s);
-        SDL_RenderClear(s);
-        objects.clear();
-
-        if(Square_direction) xSquare += 2;
-        else xSquare -= 2;
-
-        if(xSquare == WIDTH - SQ_SIDE) Square_direction = false;
-        else if(xSquare == 0) Square_direction = true;
+  while (running) {
+    while (SDL_PollEvent(&event)) {
+      if (event.type == SDL_QUIT) {
+        running = false;
+      }
+      if (event.type == SDL_MOUSEMOTION) {
+        SDL_GetMouseState(&xMouse, &yMouse);
+      }
     }
 
-    return 0;
+    SDL_RenderClear(s);
+
+    moving_cube.set_coords(xSquare, 400);
+    moving_cube.render("square", args_mc);
+    objects.push_back(moving_cube.points);
+
+    ms.set_coords(100, 100);
+    ms.render("square", args_ms);
+    objects.push_back(ms.points);
+
+    obstacle_circle.render("circle", args_oc);
+    objects.push_back(obstacle_circle.points);
+
+    render_functions(s, xMs, yMs, xMouse, yMouse);
+
+    cursor.set_coords(xMouse, yMouse);
+    cursor.render("circle", args_cr);
+
+    SDL_RenderPresent(s);
+    SDL_RenderClear(s);
+    objects.clear();
+
+    if (Square_direction)
+      xSquare += 2;
+    else
+      xSquare -= 2;
+
+    if (xSquare == WIDTH - SQ_SIDE)
+      Square_direction = false;
+    else if (xSquare == 0)
+      Square_direction = true;
+  }
+
+  SDL_DestroyRenderer(s);
+  SDL_DestroyWindow(window);
+  SDL_Quit();
+  return 0;
 }
