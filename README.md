@@ -3,6 +3,7 @@
 ## Implementation
 
 Simple, casting every ray and checking if it intersects with any of the present objects.
+Added multithreading, so the rays are separated in chunks and renderd on diffrent threads.
 
 ## Compiling and Running
 
