@@ -19,3 +19,7 @@ Target: x86_64-apple-darwin24.1.0
 Thread model: posix
 InstalledDir: /Library/Developer/CommandLineTools/usr/bin
 ```
+
+## Examples
+
+![image](./ss1.png)
