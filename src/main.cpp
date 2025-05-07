@@ -11,8 +11,10 @@ using namespace std;
 
 vector<vector<pair<int, int>>> objects;
 
-bool is_in_objects(int x, int y) {
-  for (int i = 0; i < objects.size(); i++) {
+bool is_in_objects(int x, int y) 
+{
+  for (int i = 0; i < objects.size(); i++) 
+  {
     if (binary_search(objects[i].begin(), objects[i].end(), make_pair(x, y)))
       return true;
   }
@@ -21,14 +23,18 @@ bool is_in_objects(int x, int y) {
 
 void render_chunk(vector<double> &diff_x1, vector<double> &diff_y1, double x2,
                   double y2, int start, int end,
-                  vector<SDL_Point> &local_points) {
-  for (int i = start; i < end; i++) {
+                  vector<SDL_Point> &local_points) 
+{
+  for (int i = start; i < end; i++) 
+  {
     double step_x = diff_x1[i] / 2;
     double step_y = diff_y1[i] / 2;
     double x = x2, y = y2;
 
-    if (step_x <= 0 && step_y <= 0) {
-      while (x > 0 && y > 0) {
+    if (step_x <= 0 && step_y <= 0) 
+    {
+      while (x > 0 && y > 0) 
+      {
         x += step_x;
         y += step_y;
         if (is_in_objects(x, y))
@@ -39,8 +45,10 @@ void render_chunk(vector<double> &diff_x1, vector<double> &diff_y1, double x2,
 
     x = x2;
     y = y2;
-    if (step_x >= 0 && step_y <= 0) {
-      while (x < WIDTH && y > 0) {
+    if (step_x >= 0 && step_y <= 0) 
+    {
+      while (x < WIDTH && y > 0) 
+      {
         x += step_x;
         y += step_y;
         if (is_in_objects(x, y))
@@ -51,8 +59,10 @@ void render_chunk(vector<double> &diff_x1, vector<double> &diff_y1, double x2,
 
     x = x2;
     y = y2;
-    if (step_x <= 0 && step_y >= 0) {
-      while (x > 0 && y < HEIGHT) {
+    if (step_x <= 0 && step_y >= 0) 
+    {
+      while (x > 0 && y < HEIGHT) 
+      {
         x += step_x;
         y += step_y;
         if (is_in_objects(x, y))
@@ -63,8 +73,10 @@ void render_chunk(vector<double> &diff_x1, vector<double> &diff_y1, double x2,
 
     x = x2;
     y = y2;
-    if (step_x >= 0 && step_y >= 0) {
-      while (x < WIDTH && y < HEIGHT) {
+    if (step_x >= 0 && step_y >= 0) 
+    {
+      while (x < WIDTH && y < HEIGHT) 
+      {
         x += step_x;
         y += step_y;
         if (is_in_objects(x, y))
@@ -76,7 +88,8 @@ void render_chunk(vector<double> &diff_x1, vector<double> &diff_y1, double x2,
 }
 
 void render_functions(SDL_Renderer *s, vector<double> &diff_x1,
-                      vector<double> &diff_y1, double x2, double y2) {
+                      vector<double> &diff_y1, double x2, double y2) 
+{
   SDL_SetRenderDrawColor(s, 0, 0xFF, 0xFF, 0xFF);
 
   int num_threads = 8;
@@ -86,11 +99,13 @@ void render_functions(SDL_Renderer *s, vector<double> &diff_x1,
 
   vector<vector<SDL_Point>> thread_points(num_threads);
 
-  for (int i = 0; i < num_threads; i++) {
+  for (int i = 0; i < num_threads; i++) 
+  {
     int start = i * chunk_size;
     int end = (i + 1) * chunk_size;
 
-    threads.emplace_back([=, &diff_x1, &diff_y1, &thread_points]() {
+    threads.emplace_back([=, &diff_x1, &diff_y1, &thread_points]() 
+    {
       render_chunk(diff_x1, diff_y1, x2, y2, start, end, thread_points[i]);
     });
   }
@@ -99,7 +114,8 @@ void render_functions(SDL_Renderer *s, vector<double> &diff_x1,
     t.join();
 
   vector<SDL_Point> all_points;
-  for (auto &vec : thread_points) {
+  for (auto &vec : thread_points) 
+  {
     all_points.insert(all_points.end(), vec.begin(), vec.end());
   }
 
@@ -107,7 +123,8 @@ void render_functions(SDL_Renderer *s, vector<double> &diff_x1,
   SDL_SetRenderDrawColor(s, 0x00, 0x00, 0x00, 0xFF);
 }
 
-int main() {
+int main() 
+{
   SDL_Init(SDL_INIT_VIDEO);
 
   SDL_Window *window = SDL_CreateWindow(
@@ -145,7 +162,8 @@ int main() {
   vector<double> xMs;
   vector<double> yMs;
 
-  for (int i = 0; i < NUMBER_OF_RAYS + 10; i++) {
+  for (int i = 0; i < NUMBER_OF_RAYS + 10; i++) 
+  {
     double angle = (2 * 3.1416 * i) / NUMBER_OF_RAYS;
     double dx = cos(angle);
     double dy = sin(angle);
@@ -154,12 +172,16 @@ int main() {
     yMs.push_back(dy);
   }
 
-  while (running) {
-    while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_QUIT) {
+  while (running) 
+  {
+    while (SDL_PollEvent(&event)) 
+    {
+      if (event.type == SDL_QUIT) 
+      {
         running = false;
       }
-      if (event.type == SDL_MOUSEMOTION) {
+      if (event.type == SDL_MOUSEMOTION) 
+      {
         SDL_GetMouseState(&xMouse, &yMouse);
       }
     }
